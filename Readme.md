@@ -1,0 +1,10 @@
+# VersionDB
+
+## What is this?
+
+VersionDB is essentially a versioned data storage class built on top of Git.
+It is a simple python class that provides easy storage and retrieval for basic JSON data where tracking changes is essential.
+It has a simple API where you can either write some data, or get some data.
+Optionally, you may pass in a Python `datetime` object to retrieve the data at any point in time.
+The envisioned used case for it is to subclass this and use it for more specfic problems. 
+An example of this would be to override the `_get_history_obj` method so that `get_data_history` returns an object useful for your specific case.
