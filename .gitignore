@@ -103,3 +103,6 @@ ENV/
 
 # Binaries
 /bin
+
+# Default data storage
+/db

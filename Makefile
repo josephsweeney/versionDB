@@ -1,18 +1,22 @@
 CC     = clang
-CFLAGS = -g -w -std=c99
+CFLAGS = -g -std=c99
+OBJS = bin/data.o bin/sha1.o
+PROG = main
+
+all: $(PROG)
+
+$(PROG): $(OBJS)
+	$(CC) $(CFLAGS) $(OBJS) -o bin/$@
+
+run: all
+	./bin/main
+
+bin/data.o: src/sha1.h src/data.c
+	$(CC) $(CFLAGS) -c src/data.c -o $@
+
+bin/sha1.o: src/sha1.h
+	$(CC) $(CFLAGS) -c src/sha1.c -o $@
 
 
-build: data
-
-run: build
-	./bin/data
-
-data: data.o sha1.o 
-	$(CC) bin/$< -o bin/$@
-
-sha1: sha1.o
-	$(CC) bin/$< -o bin/$@
-
-%.o: src/%.c
-	$(CC) -c $< -o bin/$@ $(CFLAGS)
-
+clean:
+	rm bin/*
