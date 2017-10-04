@@ -7,9 +7,7 @@ void commit_init(Commit *commit, BYTE data[], BYTE parent[]) {
   memcpy(commit->data,   data,   SHA1_BLOCK_SIZE);
   if(parent != NULL) {
     memcpy(commit->parent, parent, SHA1_BLOCK_SIZE);
-  } else {
-    commit->parent = NULL;
-  }
+  } 
 
   struct timeval tp;
   gettimeofday(&tp, NULL);

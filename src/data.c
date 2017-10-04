@@ -28,11 +28,12 @@ int read(char *id, BYTE buffer[], int size) {
 
   int i = 0;
   while(1) {
-    int bytes_read = fread(buffer + i, 1, 1, fd);
+    int bytes_read = fread(buffer + i, size, 1, fd);
     i++;
     if(i >= size) {
       printf("Not enough memory given for buffer.\n");
-      return 0;
+      printf("    Read %d bytes, given %d bytes for buffer\n", i, size);
+      return -1;
     }
     if(bytes_read < 1) 
       break;
@@ -120,17 +121,50 @@ void make_commit(char *id, BYTE *hash) {
   }
 }
 
-void get_data(char *id, BYTE *buf, size_t size) {
+int get_data(char *id, BYTE *buf, size_t size) {
   // Get ref from id
+  int idlen = strlen(id);
+  char refpath[10 + idlen];
+  sprintf(refpath, "db/refs/");
+  strcat(refpath, id);
 
-  // Get commit from ref
+  // Get commit hash from ref
+  int hash_size = SHA1_BLOCK_SIZE;
+  int hash_str_size = hash_size*2+1;
 
-  // Get hash from commit
+  BYTE commit_hash[hash_size];
 
-  // Get filepath from hash
+  if(!read(refpath, commit_hash, hash_size)) {
+    printf("Couldn't find ref for id: %s\n", id);
+    return -1;
+  }
+
+  // Get commit from hash
+  char hash_str[hash_str_size];
+  hash_to_str(commit_hash, hash_str);
+  char objpath[hash_str_size + 20];
+  get_file_path(objpath, hash_str);
+
+  Commit commit;
+
+  if(!read(objpath, (BYTE*)&commit, sizeof(Commit))) {
+    printf("Commit with hash '%s' not found.\n", hash_str);
+    return -1;
+  }
+
+  // Get data filepath from commit
+  BYTE *data_hash = commit.data;
+  hash_to_str(data_hash, hash_str);
+  char data_path[hash_str_size + 20];
+  get_file_path(data_path, hash_str);
 
   // Read data from filepath
-  /* read(filepath, buf, size); */
+  int success = read(data_path, buf, size);
+  if(success == -1) {
+    return -2;
+  }
+
+  return 0;
   
 }
 
@@ -197,12 +231,16 @@ int main()
 
   /* write("test1", data, 12); */
 
-  char buffer[100];
+ BYTE buffer[100];
 
   /* read("test1", buffer, 100); */
 
   add_data("conf", (BYTE*)data, strlen(data)+1);
 
-  /* get_data("conf", buffer, 100); */
+  printf("Wrote: %s\n", data);
+
+  get_data("conf", buffer, 100);
+
+  printf("Read: %s\n", (char*)buffer);
 
 }
