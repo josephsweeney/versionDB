@@ -121,7 +121,7 @@ void make_commit(char *id, BYTE *hash) {
   }
 }
 
-int get_data(char *id, BYTE *buf, size_t size) {
+Commit get_commit_from_id(char *id) {
   // Get ref from id
   int idlen = strlen(id);
   char refpath[10 + idlen];
@@ -136,7 +136,6 @@ int get_data(char *id, BYTE *buf, size_t size) {
 
   if(!read(refpath, commit_hash, hash_size)) {
     printf("Couldn't find ref for id: %s\n", id);
-    return -1;
   }
 
   // Get commit from hash
@@ -149,11 +148,40 @@ int get_data(char *id, BYTE *buf, size_t size) {
 
   if(!read(objpath, (BYTE*)&commit, sizeof(Commit))) {
     printf("Commit with hash '%s' not found.\n", hash_str);
-    return -1;
   }
+
+  return commit;
+}
+
+Commit get_commit_from_hash(BYTE *hash) {
+  int hash_size = SHA1_BLOCK_SIZE;
+  int hash_str_size = hash_size*2+1;
+
+  // Get commit from hash
+  char hash_str[hash_str_size];
+  hash_to_str(hash, hash_str);
+  char objpath[hash_str_size + 20];
+  get_file_path(objpath, hash_str);
+
+  Commit commit;
+
+  if(!read(objpath, (BYTE*)&commit, sizeof(Commit))) {
+    printf("Commit with hash '%s' not found.\n", hash_str);
+  }
+
+  return commit;
+}
+
+int get_data(char *id, BYTE *buf, size_t size) {
+  int hash_size = SHA1_BLOCK_SIZE;
+  int hash_str_size = hash_size*2+1;
+  
+  Commit commit = get_commit_from_id(id);
 
   // Get data filepath from commit
   BYTE *data_hash = commit.data;
+  char hash_str[hash_str_size];
+    
   hash_to_str(data_hash, hash_str);
   char data_path[hash_str_size + 20];
   get_file_path(data_path, hash_str);
@@ -166,6 +194,37 @@ int get_data(char *id, BYTE *buf, size_t size) {
 
   return 0;
   
+}
+
+int get_data_at_time(char* id, BYTE *buf, size_t size, u64 timestamp) {
+  /* !!!!!!!!!!!!!!!!!!!!!!!! 
+          NEEDS TESTING 
+     !!!!!!!!!!!!!!!!!!!!!!!! */
+  
+  int hash_size = SHA1_BLOCK_SIZE;
+  int hash_str_size = hash_size*2+1;
+  
+  Commit commit = get_commit_from_id(id);
+
+  while(commit.time > timestamp && commit.has_parent) {
+    commit = get_commit_from_hash(commit.parent);
+  }
+
+  // Get data filepath from commit
+  BYTE *data_hash = commit.data;
+  char hash_str[hash_str_size];
+    
+  hash_to_str(data_hash, hash_str);
+  char data_path[hash_str_size + 20];
+  get_file_path(data_path, hash_str);
+
+  // Read data from filepath
+  int success = read(data_path, buf, size);
+  if(success == -1) {
+    return -2;
+  }
+
+  return 0;
 }
 
 int add_data_to_objects(BYTE *hash, BYTE *data, size_t size) {

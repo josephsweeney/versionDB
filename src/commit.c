@@ -4,9 +4,12 @@
 #include "commit.h"
 
 void commit_init(Commit *commit, BYTE data[], BYTE parent[]) {
+  commit->has_parent = 0;
+
   memcpy(commit->data,   data,   SHA1_BLOCK_SIZE);
   if(parent != NULL) {
     memcpy(commit->parent, parent, SHA1_BLOCK_SIZE);
+    commit->has_parent = 1;
   } 
 
   struct timeval tp;
