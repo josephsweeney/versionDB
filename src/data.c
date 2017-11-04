@@ -1,45 +1,64 @@
-#include<stdio.h>
-#include<string.h>
-#include<sys/stat.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include "sha1.h"
 #include "data.h"
 #include "commit.h"
 
 
-int write(char *id, BYTE *data, size_t byteCount) {
-  FILE* fd = fopen(id, "wb");
+int vdb_size(char *id) {
+  struct stat st;
 
-  if(!fd) {
-    return 0;
+  if(stat(id, &st) == 0)
+    return st.st_size;
+
+  return -1; 
+
+}
+
+
+int vdb_write(char *id, BYTE *data, size_t byte_count) {
+  int fd = open(id, O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
+
+  if(fd == -1) {
+    printf("Couldn't open file %s\n", id);
+    exit(-1);
   }
-
-  fwrite(data, 1, byteCount, fd);
-  fclose(fd);
+  int written = 0;
+  while(written < byte_count) {
+    written += write(fd, data - written, byte_count - written);
+  }
+  close(fd);
 
   return 1;
 }
 
-int read(char *id, BYTE buffer[], int size) {
-  FILE* fd = fopen(id, "rb");
+int vdb_read(char *id, BYTE buffer[], int size) {
+  int fd = open(id, O_RDONLY);
 
-  if(!fd) {
-    return 0;
+  if(fd == -1) {
+    printf("Couldn't open file %s\n", id);
+    exit(-1);
   }
 
-  int i = 0;
-  while(1) {
-    int bytes_read = fread(buffer + i, size, 1, fd);
-    i++;
-    if(i >= size) {
-      printf("Not enough memory given for buffer.\n");
-      printf("    Read %d bytes, given %d bytes for buffer\n", i, size);
-      return -1;
+  int total_read = 0;
+  int bytes_read = 1;
+  while(bytes_read) {
+    bytes_read = read(fd, buffer + total_read, size - total_read);
+    total_read += bytes_read;
+    
+    if(total_read >= size) {
+      printf("Not enough memory given for id %s.\n", id);
+      printf("    Read %d bytes, given %d bytes for buffer\n", total_read, size);
+      exit(-1);
     }
-    if(bytes_read < 1) 
-      break;
   }
       
-  fclose(fd);
+  close(fd);
 
   return 1;
 }
@@ -81,7 +100,7 @@ int get_current_commit(char *id, BYTE *hash) {
   sprintf(refpath, "db/refs/");
   strcat(refpath, id);
 
-  if(!read(refpath, hash, SHA1_BLOCK_SIZE)) {
+  if(!vdb_read(refpath, hash, SHA1_BLOCK_SIZE)) {
     hash = NULL;
     return 0;
 
@@ -116,9 +135,7 @@ void make_commit(char *id, BYTE *hash) {
   sprintf(refpath, "db/refs/");
   strcat(refpath, id);
 
-  if(!write(refpath, commit_hash, hash_size)) {
-    printf("Couldn't add commit hash to ref\n");
-  }
+  vdb_write(refpath, commit_hash, hash_size);
 }
 
 Commit get_commit_from_id(char *id) {
@@ -134,9 +151,7 @@ Commit get_commit_from_id(char *id) {
 
   BYTE commit_hash[hash_size];
 
-  if(!read(refpath, commit_hash, hash_size)) {
-    printf("Couldn't find ref for id: %s\n", id);
-  }
+  vdb_read(refpath, commit_hash, hash_size);
 
   // Get commit from hash
   char hash_str[hash_str_size];
@@ -146,9 +161,7 @@ Commit get_commit_from_id(char *id) {
 
   Commit commit;
 
-  if(!read(objpath, (BYTE*)&commit, sizeof(Commit))) {
-    printf("Commit with hash '%s' not found.\n", hash_str);
-  }
+  vdb_read(objpath, (BYTE*)&commit, sizeof(Commit));
 
   return commit;
 }
@@ -165,9 +178,7 @@ Commit get_commit_from_hash(BYTE *hash) {
 
   Commit commit;
 
-  if(!read(objpath, (BYTE*)&commit, sizeof(Commit))) {
-    printf("Commit with hash '%s' not found.\n", hash_str);
-  }
+  vdb_read(objpath, (BYTE*)&commit, sizeof(Commit));
 
   return commit;
 }
@@ -187,10 +198,7 @@ int get_data(char *id, BYTE *buf, size_t size) {
   get_file_path(data_path, hash_str);
 
   // Read data from filepath
-  int success = read(data_path, buf, size);
-  if(success == -1) {
-    return -2;
-  }
+  vdb_read(data_path, buf, size);
 
   return 0;
   
@@ -219,10 +227,7 @@ int get_data_at_time(char* id, BYTE *buf, size_t size, u64 timestamp) {
   get_file_path(data_path, hash_str);
 
   // Read data from filepath
-  int success = read(data_path, buf, size);
-  if(success == -1) {
-    return -2;
-  }
+  vdb_read(data_path, buf, size);
 
   return 0;
 }
@@ -256,7 +261,7 @@ int add_data_to_objects(BYTE *hash, BYTE *data, size_t size) {
   // Write to the file
   sprintf(filepath, "%s/", path);
   strcat(filepath, name);
-  write(filepath, data, size);
+  vdb_write(filepath, data, size);
 
   return 0;
 }

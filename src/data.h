@@ -9,8 +9,8 @@
 
 /*********************** FUNCTION DECLARATIONS **********************/
 
-int write(char *id, BYTE *data, size_t byteCount);
-int read(char *id, BYTE buffer[], int size);
+int vdb_write(char *id, BYTE *data, size_t byteCount);
+int vdb_read(char *id, BYTE buffer[], int size);
 void hash_to_str(BYTE *hash, char *dst);
 void get_file_path(char *dest, char *hashstr);
 

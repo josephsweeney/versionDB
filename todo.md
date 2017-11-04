@@ -1,7 +1,6 @@
 # TODO
 
-* Hash some data
-* Make a hash table
+* Store hash_str in ref
 
 
 
