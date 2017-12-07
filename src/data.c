@@ -42,7 +42,7 @@ int vdb_read(char *id, BYTE buffer[], int size) {
 
   if(fd == -1) {
     printf("Couldn't open file %s\n", id);
-    exit(-1);
+    return(0);
   }
 
   int total_read = 0;
@@ -54,7 +54,7 @@ int vdb_read(char *id, BYTE buffer[], int size) {
     if(total_read >= size) {
       printf("Not enough memory given for id %s.\n", id);
       printf("    Read %d bytes, given %d bytes for buffer\n", total_read, size);
-      exit(-1);
+      return(0);
     }
   }
       
@@ -286,6 +286,7 @@ int add_data(char* id, BYTE *data, size_t bytes) {
   return 0;
 }
 
+#if 0
 int main()
 {
 
@@ -308,3 +309,4 @@ int main()
   printf("Read: %s\n", (char*)buffer);
 
 }
+#endif
