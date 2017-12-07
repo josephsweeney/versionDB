@@ -4,10 +4,9 @@
 
 * Store hash_str in ref (what does this mean?)
 
+* Switch protocol to plaintext protocol?
+
 Server:
-* Write the shared memory queue implementation.
-  * Need a semaphore or locks for this
-* Write the main server loop
 * Write the worker process loop
 
 Data storage:
