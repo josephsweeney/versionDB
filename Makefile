@@ -1,5 +1,5 @@
 CC     = clang
-CFLAGS = -g -std=c99 -pthread
+CFLAGS = -g -std=c99
 OBJS = bin/server.o bin/data.o bin/sha1.o bin/commit.o
 PROG = main
 
@@ -10,6 +10,12 @@ $(PROG): $(OBJS)
 
 run: all
 	./bin/main
+
+server: $(OBJS)
+	$(CC) $(CFLAGS) $(OBJS) -o bin/$@
+
+client: bin/client.o
+	$(CC) $(CFLAGS) $< -o bin/$@
 
 bin/data.o: src/sha1.h src/commit.c src/data.c
 	$(CC) $(CFLAGS) -c src/data.c -o $@
@@ -22,6 +28,9 @@ bin/commit.o: src/commit.h src/commit.c
 
 bin/server.o: src/server.h src/server.c
 	$(CC) $(CFLAGS) -c src/server.c -o $@
+
+bin/client.o: src/client.h src/client.c
+	$(CC) $(CFLAGS) -c src/client.c -o $@
 
 
 

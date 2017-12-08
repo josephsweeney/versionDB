@@ -27,12 +27,17 @@ typedef struct {
 
 void* accept_loop(void* in);
 
+char *recv_request(int sid);
 
-RequestInfo* request_info_get(int sid);
+RequestInfo* request_info_get(char *request);
 void         request_info_destroy(RequestInfo* info);
 
-char* id_get(int sid);
-
-int eat_prefix(int sid, char *prefix);
+// adjusts req to point after prefix
+int eat_prefix(char** req, char *prefix); 
+// returns the char* after the first char c
+char* get_past(char* req, char c);
+// returns a copy from req to char c not including c
+// if check_end is not 0, we will also copy to the 0 byte instead of c
+char* copy_to(char* req, char c, int check_end);
 
 #endif

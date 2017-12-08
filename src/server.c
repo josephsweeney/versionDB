@@ -82,8 +82,16 @@ void *accept_loop(void* in) {
   struct sockaddr_un client;
   socklen_t client_sz;
   while(1) {
+    printf("Waiting\n");
     sid = accept(listen_socket, (struct sockaddr*)&client, &client_sz);
-    RequestInfo *info = request_info_get(sid);
+    char *request = recv_request(sid);
+    if(request == NULL) {
+      // Bad Request,
+      // TODO: Send back an error
+      continue; 
+    }
+    printf("%s\n", request);
+    RequestInfo *info = request_info_get(request);
     if(info == NULL) {
       // Bad Request,
       // TODO: Send back an error
@@ -93,92 +101,83 @@ void *accept_loop(void* in) {
       case WRITE:
 	// write data
 	printf("Write\n");
+	printf("ID: %s\n", info->id);
+	printf("LEN: %llu\n", info->write_len);
 	break;
       case READ:
 	//read data
 	printf("Read\n");
+	printf("ID: %s\n", info->id);
 	break;
       case READ_TIME:
 	// read data at time
 	printf("Read at time\n");
+	printf("ID: %s\n", info->id);
+	printf("TIME: %llu\n", info->time);
 	break;
       default:
 	printf("Unknown type given");
     }
     request_info_destroy(info);
+    close(sid);
+    printf("Finished request\n");
   }
 }
 
 
-RequestInfo* request_info_get(int sid) {
+RequestInfo* request_info_get(char *req) {
   char delimiter = ',';
+
+  char *pos = req;
 
   /* TYPE */
 
-  if(eat_prefix(sid, "TYPE:") == -1) {
+  if(eat_prefix(&pos, "TYPE:") == -1) {
     printf("prefix wasn't correct\n");
     return NULL;
   }
   RequestType type;
-  
-  int bytes = 0;
-  int max_len = 16;
-  char type_str[max_len];
-  int type_sz = sizeof(type);
-  while(type_str[bytes] != delimiter) {
-    bytes += recv(sid, type_str+bytes, 1, 0);
-    if(bytes == max_len) {
-      // BAD REQUEST
-      
-      return NULL;
-    }
-  }
-  type_str[bytes] = '\0';
 
-  if(strcmp(type_str, "WRITE") == 0) {
+  if(strncmp(pos, "WRITE", 5) == 0) {
     type = WRITE;
-  } else if(strcmp(type_str, "READ") == 0) {
-    type = READ;
-  } else if(strcmp(type_str, "READ_TIME") == 0) {
+  } else if(strncmp(pos, "READ_TIME", 9) == 0) {
     type = READ_TIME;
+  } else if(strncmp(pos, "READ", 4) == 0) {
+    type = READ;
   } else {
     // UNSUPPORTED TYPE
+    printf("Request had unsupported type.\n%s\n", req);
     return NULL;
   }
+  pos = get_past(pos, delimiter);
   
 
   /* ID */
-  
-  char *id = id_get(sid);
+
+  if(eat_prefix(&pos, "ID:") == -1) {
+    printf("prefix wasn't correct\n");
+    return NULL;
+  }
+  char *id = copy_to(pos, delimiter, 1);
   if(id == NULL) {
+    printf("copy_to didn't work.\n%s\n", req);
     return NULL;
   }
 
+  
   /* WRITE_LEN */
   
   u64 write_len = 0;
   if(type == WRITE) {
-    if(eat_prefix(sid, "BYTES:") == -1) {
+    pos = get_past(pos, delimiter);
+    if(eat_prefix(&pos, "BYTES:") == -1) {
       printf("prefix wasn't correct\n");
       free(id);
       return NULL;
     }
     
-    bytes = 0;
     int size = 32;
-    char *buf = (char*)malloc(sizeof(char)*size);
-    while(buf[bytes] != '\0') {
-      bytes += recv(sid, buf+bytes, 1, 0);
-      if(buf[bytes] < '0' || buf[bytes] > '9') {
-	free(buf);
-	free(id);
-	return NULL;
-      }
-      if(bytes == size) {
-	size *= 2;
-	buf = (char*)realloc(buf, sizeof(char)*size);
-      }
-    }
+    char *buf = copy_to(pos, delimiter, 1);   
     write_len = (u64)strtoull(buf, (char**)NULL, 10);
     free(buf);
   }
@@ -187,26 +186,14 @@ RequestInfo* request_info_get(int sid) {
   
   u64 time = 0;
   if(type == READ_TIME) {
-    if(eat_prefix(sid, "TIME:") == -1) {
+    pos = get_past(pos, delimiter);
+    if(eat_prefix(&pos, "TIME:") == -1) {
       printf("prefix wasn't correct\n");
       free(id);
       return NULL;
     }
-    bytes = 0;
     int size = 32;
-    char *buf = (char*)malloc(sizeof(char)*size);
-    while(buf[bytes] != '\0') {
-      bytes += recv(sid, buf+bytes, 1, 0);
-      if(buf[bytes] < '0' || buf[bytes] > '9') {
-	free(buf);
-	free(id);
-	return NULL;
-      }
-      if(bytes == size) {
-	size *= 2;
-	buf = (char*)realloc(buf, sizeof(char)*size);
-      }
-    }
+    char *buf = copy_to(pos, delimiter, 1);
     time = (u64)strtoull(buf, (char**)NULL, 10);
     free(buf);
   }
@@ -226,48 +213,69 @@ void request_info_destroy(RequestInfo *info) {
   free(info);
 }
 
-char *id_get(int sid) {
-  if(eat_prefix(sid, "ID:") == -1) {
-    printf("prefix wasn't correct\n");
-    return NULL;
-  }
-  int initial = 20;
-  int sz = initial;
-  char *id = (char*)malloc(sz*sizeof(char));
-  id[0] = 'a'; // init for while loop check
 
-  int bytes = 0;
-  while(*(id+bytes) != '\0') {
-    bytes += recv(sid, id + bytes, 1, 0);
-    if(bytes == sz) {
-      id = realloc(id, (sz + initial)*sizeof(char));
-    }
-    if(bytes > 1024) {
-      // Calling that id too big
-      free(id);
-      printf("Someone tried to give me a big id\n");
-      return NULL;
-    }
-    if(id[bytes] == ',') {
-      // Hit the end of the id
-      id[bytes] = '\0';
-      break;
-    }
-  }
 
-  return id;
+int eat_prefix(char **req, char *prefix) {
+  int pre_len = strlen(prefix);
+  if(strncmp(*(req), prefix, pre_len) == 0) {
+    *req += pre_len;
+    return 0;
+  } else {
+    return -1;
+  }
 }
 
-int eat_prefix(int sid, char *prefix) {
-  char buf[32];
-  int pre_len = strlen(prefix);
-  buf[0] = 'a';
+char *get_past(char* req, char c) {
+  int i = 0;
+  while(req[i] != c) {
+    if(req[i] == '\0') {
+      return NULL;
+    }
+    i++;
+  }
+  return &(req[i+1]);
+}
+
+char* copy_to(char* req, char c, int check_end) {
+  int size = 32;
+  char *buf = (char*)malloc(size);
+  int i = 0;
+  while(req[i] != c) {
+    if(i == size-1) {
+      size *= 2;
+      buf = (char*)realloc(buf, size);
+    }
+    if(check_end && req[i] == '\0') {
+      break;
+    } else if(req[i] == '\0') {
+      return NULL;
+    }
+    buf[i] = req[i];
+    i++;
+  }
+  buf[i] = '\0';
+  return buf;
+}
+
+char *recv_request(int sid) {
+  int sz = 32;
+  char *buf = (char*)malloc(sz);
   int bytes = 0;
-  while(buf[bytes] != ':') {
+  int i = 0;
+  while(1) {
     bytes += recv(sid, buf+bytes, 1, 0);
-    if(bytes > pre_len || buf[bytes] != prefix[bytes]) {
-      return -1;
+    if(buf[i++] == '\0') {
+      break;
+    }
+    if(bytes >= sz) {
+      sz *= 2;
+      buf = (char*)realloc(buf, sz);
+    }
+    if(bytes > 2048) {
+      // Arbitrary limit but I don't expect a request to be this large
+      free(buf);
+      return NULL;
     }
   }
-  return 0;
+  return buf;
 }
