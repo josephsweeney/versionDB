@@ -4,10 +4,9 @@
 
 * Store hash_str in ref (what does this mean?)
 
-* Switch protocol to plaintext protocol?
-
 Server:
-* Write the worker process loop
+* Connect the server to the data management layer
+* Test that multiple threads are actually managing the incoming connections
 
 Data storage:
 * Add file locks we actually writing the data
@@ -18,7 +17,9 @@ Data storage:
   * This means we have no worries over the size of the data they want to store, it can be much greater than the memory we use.
 
 Client
-* Write a simple client in C
+* Improve the client for testing purposes
+  * have it construct simple requests
+  * have it retrieve the response from the server
 
 
 Limit the client server to talking over Unix sockets for now.
