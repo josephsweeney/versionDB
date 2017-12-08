@@ -39,7 +39,7 @@ This would be followed by 1024 bytes that you want stored.
 
 `TYPE:READ_TIME,ID:great_data,TIME:1356048000000`
 
-This would get you what the state of "great_data" was on Dec 21 2012 00:00:00 or the original state of the data if it was added after that time.
+This would get you what the state of "great_data" was on Dec 21 2012 00:00:00 UTC or the original state of the data if it was added after that time.
 
 NOTE: We are also making the assumption that these messages are null terminated strings.
 
