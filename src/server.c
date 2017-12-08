@@ -30,8 +30,7 @@ void int_handler(int sig) {
     unlink(global_host);
 
   char *output = "\nStopped the server!\n";
-  int len = strlen(output);
-  write(1, output, len);
+  write(1, output, strlen(output));
   exit(0);
 }
 
@@ -112,37 +111,107 @@ void *accept_loop(void* in) {
 
 
 RequestInfo* request_info_get(int sid) {
-  RequestInfo *info = (RequestInfo*)malloc(sizeof(RequestInfo));
+  char delimiter = ',';
+
+  /* TYPE */
+
+  if(eat_prefix(sid, "TYPE:") == -1) {
+    printf("prefix wasn't correct\n");
+    return NULL;
+  }
+  RequestType type;
   
   int bytes = 0;
-  RequestType type;
+  int max_len = 16;
+  char type_str[max_len];
   int type_sz = sizeof(type);
-  while(bytes < type_sz) {
-    bytes += recv(sid, (&type)+bytes, type_sz-bytes, 0);
+  while(type_str[bytes] != delimiter) {
+    bytes += recv(sid, type_str+bytes, 1, 0);
+    if(bytes == max_len) {
+      // BAD REQUEST
+      
+      return NULL;
+    }
   }
+  type_str[bytes] = '\0';
 
+  if(strcmp(type_str, "WRITE") == 0) {
+    type = WRITE;
+  } else if(strcmp(type_str, "READ") == 0) {
+    type = READ;
+  } else if(strcmp(type_str, "READ_TIME") == 0) {
+    type = READ_TIME;
+  } else {
+    // UNSUPPORTED TYPE
+    return NULL;
+  }
+  
+
+  /* ID */
+  
   char *id = id_get(sid);
   if(id == NULL) {
     return NULL;
   }
 
+  /* WRITE_LEN */
+  
   u64 write_len = 0;
   if(type == WRITE) {
-    int write_sz = sizeof(write_len);
-    bytes = 0;
-    while(bytes < write_sz) {
-      bytes += recv(sid, (&write_len)+bytes, write_sz-bytes, 0);
+    if(eat_prefix(sid, "BYTES:") == -1) {
+      printf("prefix wasn't correct\n");
+      free(id);
+      return NULL;
     }
+    
+    bytes = 0;
+    int size = 32;
+    char *buf = (char*)malloc(sizeof(char)*size);
+    while(buf[bytes] != '\0') {
+      bytes += recv(sid, buf+bytes, 1, 0);
+      if(buf[bytes] < '0' || buf[bytes] > '9') {
+	free(buf);
+	free(id);
+	return NULL;
+      }
+      if(bytes == size) {
+	size *= 2;
+	buf = (char*)realloc(buf, sizeof(char)*size);
+      }
+    }
+    write_len = (u64)strtoull(buf, (char**)NULL, 10);
+    free(buf);
   }
 
+  /* TIME */
+  
   u64 time = 0;
   if(type == READ_TIME) {
-    int time_sz = sizeof(time);
-    bytes = 0;
-    while(bytes < time_sz) {
-      bytes += recv(sid, (&time)+bytes, time_sz-bytes, 0);
+    if(eat_prefix(sid, "TIME:") == -1) {
+      printf("prefix wasn't correct\n");
+      free(id);
+      return NULL;
     }
+    bytes = 0;
+    int size = 32;
+    char *buf = (char*)malloc(sizeof(char)*size);
+    while(buf[bytes] != '\0') {
+      bytes += recv(sid, buf+bytes, 1, 0);
+      if(buf[bytes] < '0' || buf[bytes] > '9') {
+	free(buf);
+	free(id);
+	return NULL;
+      }
+      if(bytes == size) {
+	size *= 2;
+	buf = (char*)realloc(buf, sizeof(char)*size);
+      }
+    }
+    time = (u64)strtoull(buf, (char**)NULL, 10);
+    free(buf);
   }
+
+  RequestInfo *info = (RequestInfo*)malloc(sizeof(RequestInfo));
 
   info->type = type;
   info->id = id;
@@ -158,6 +227,10 @@ void request_info_destroy(RequestInfo *info) {
 }
 
 char *id_get(int sid) {
+  if(eat_prefix(sid, "ID:") == -1) {
+    printf("prefix wasn't correct\n");
+    return NULL;
+  }
   int initial = 20;
   int sz = initial;
   char *id = (char*)malloc(sz*sizeof(char));
@@ -175,7 +248,26 @@ char *id_get(int sid) {
       printf("Someone tried to give me a big id\n");
       return NULL;
     }
+    if(id[bytes] == ',') {
+      // Hit the end of the id
+      id[bytes] = '\0';
+      break;
+    }
   }
 
   return id;
+}
+
+int eat_prefix(int sid, char *prefix) {
+  char buf[32];
+  int pre_len = strlen(prefix);
+  buf[0] = 'a';
+  int bytes = 0;
+  while(buf[bytes] != ':') {
+    bytes += recv(sid, buf+bytes, 1, 0);
+    if(bytes > pre_len || buf[bytes] != prefix[bytes]) {
+      return -1;
+    }
+  }
+  return 0;
 }

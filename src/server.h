@@ -33,4 +33,6 @@ void         request_info_destroy(RequestInfo* info);
 
 char* id_get(int sid);
 
+int eat_prefix(int sid, char *prefix);
+
 #endif
