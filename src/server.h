@@ -43,4 +43,7 @@ char* get_past(char* req, char c);
 // if check_end is not 0, we will also copy to the 0 byte instead of c
 char* copy_to(char* req, char c, int check_end);
 
+// retrieves 'len' bytes from the socket and stores in buf
+int retrieve_data(int sid, RequestInfo *info, BYTE *buf);
+
 #endif

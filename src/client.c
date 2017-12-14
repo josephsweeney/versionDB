@@ -31,16 +31,18 @@ int main(int argc, char* argv[]) {
   }
 
   // TEST
+  /* send_write(sid, "fun_data", "wazzu", strlen("wazzu")+1); */
+  /* printf("Sent write\n"); */
+
+  
+  usleep(1000*100);
+
   send_read(sid, "fun_data");
   printf("Sent read\n");
 
-  send_write(sid, "more_fun_stuff", "wazzup", 6);
-  printf("Sent write\n");
 
-  usleep(1000*100);
-
-  send_read_time(sid, "fun_data", 1356048000000);
-  printf("Sent read_time\n");
+  /* send_read_time(sid, "fun_data", 1356048000000); */
+  /* printf("Sent read_time\n"); */
 
   send_request(sid, "TYPE:EXIT");
 
@@ -68,6 +70,8 @@ void send_write(int sid, char* id, char *buf, int len) {
   sprintf(request, "TYPE:WRITE,ID:%s,BYTES:%d", id, len);
   
   send_request(sid, request);
+
+  send_request(sid, buf);
 
   free(request);
 

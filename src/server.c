@@ -109,23 +109,37 @@ void* process_request(void *in) {
       request_info_destroy(info);
       break;
     }
+    BYTE *buf;
+    int sz=0;
     switch(info->type) {
       case WRITE:
 	// write data
 	printf("Write\n");
 	printf("ID: %s\n", info->id);
 	printf("LEN: %llu\n", info->write_len);
+	buf = (BYTE*)malloc(info->write_len);
+	retrieve_data(sid, info, buf);
+	add_data(info->id, buf, info->write_len);
+        // Send response back (maybe the hash?)
 	break;
       case READ:
 	//read data
 	printf("Read\n");
 	printf("ID: %s\n", info->id);
+	sz = buf_size(info->id);
+	buf = (BYTE*)malloc(sz);
+	get_data(info->id, buf, sz);
+	printf("BUF of sz: %d:\n%s\nDone reading\n", sz,buf);
+	
 	break;
       case READ_TIME:
 	// read data at time
 	printf("Read at time\n");
 	printf("ID: %s\n", info->id);
 	printf("TIME: %llu\n", info->time);
+	sz = buf_size(info->id);
+	buf = (BYTE*)malloc(sz);
+	get_data_at_time(info->id, buf, sz, info->time);
 	break;
       default:
 	printf("Unknown type given");
@@ -305,4 +319,18 @@ char *recv_request(int sid) {
     }
   }
   return buf;
+}
+
+int retrieve_data(int sid, RequestInfo *info, BYTE *buf) {
+  int sz = info->write_len;
+  int bytes = 0;
+  int i = 0;
+  while(bytes < sz) {
+    int recv_bytes = recv(sid, buf+bytes, 1, 0);
+    if(recv_bytes < 0)
+      return -1;
+    bytes += recv_bytes;
+  }
+
+  return 0;
 }

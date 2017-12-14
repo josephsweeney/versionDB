@@ -1,4 +1,4 @@
-CC     = clang
+CC     = cc
 CFLAGS = -g -std=c99
 OBJS = bin/server.o bin/data.o bin/sha1.o bin/commit.o
 PROG = main

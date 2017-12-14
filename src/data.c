@@ -4,20 +4,40 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <fcntl.h>
 #include "sha1.h"
 #include "data.h"
 #include "commit.h"
 
 
-int vdb_size(char *id) {
+int vdb_size(char *path) {
   struct stat st;
 
-  if(stat(id, &st) == 0)
+  if(stat(path, &st) == 0)
     return st.st_size;
 
   return -1; 
 
+}
+
+int buf_size(char *id) {
+  int hash_size = SHA1_BLOCK_SIZE;
+  int hash_str_size = hash_size*2+1;
+
+  rlock_ref(id);
+  Commit commit = get_commit_from_id(id);
+  unlock_ref(id);
+
+  // Get data filepath from commit
+  BYTE *data_hash = commit.data;
+  char hash_str[hash_str_size];
+    
+  hash_to_str(data_hash, hash_str);
+  char data_path[hash_str_size + 20];
+  get_file_path(data_path, hash_str);
+
+  return vdb_size(data_path);
 }
 
 
@@ -25,8 +45,8 @@ int vdb_write(char *id, BYTE *data, size_t byte_count) {
   int fd = open(id, O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
 
   if(fd == -1) {
-    printf("Couldn't open file %s\n", id);
-    exit(-1);
+    printf("Couldn't open file %s to write.\n", id);
+    return(0);
   }
   int written = 0;
   while(written < byte_count) {
@@ -41,23 +61,23 @@ int vdb_read(char *id, BYTE buffer[], int size) {
   int fd = open(id, O_RDONLY);
 
   if(fd == -1) {
-    printf("Couldn't open file %s\n", id);
+    printf("Couldn't open file %s to read.\n", id);
     return(0);
   }
-
   int total_read = 0;
   int bytes_read = 1;
-  while(bytes_read) {
+  while(1) {
     bytes_read = read(fd, buffer + total_read, size - total_read);
     total_read += bytes_read;
     
-    if(total_read >= size) {
+    if(total_read > size) {
       printf("Not enough memory given for id %s.\n", id);
       printf("    Read %d bytes, given %d bytes for buffer\n", total_read, size);
       return(0);
     }
+    if(total_read == size)
+      break;
   }
-      
   close(fd);
 
   return 1;
@@ -91,6 +111,7 @@ void get_file_path(char *dest, char *hashstr) {
   sprintf(dest, "%s", filepath);
 }
 
+
 int get_current_commit(char *id, BYTE *hash) {
   int hash_size = SHA1_BLOCK_SIZE;
   int hash_str_size = hash_size*2+1;
@@ -114,6 +135,9 @@ void make_commit(char *id, BYTE *hash) {
   int hash_size = SHA1_BLOCK_SIZE;
 
   BYTE parent[hash_size];
+
+  int locked = wlock_ref(id);
+
   get_current_commit(id, parent);
 
   commit_init(&commit, hash, parent);
@@ -135,7 +159,9 @@ void make_commit(char *id, BYTE *hash) {
   sprintf(refpath, "db/refs/");
   strcat(refpath, id);
 
+  
   vdb_write(refpath, commit_hash, hash_size);
+  if(locked) unlock_ref(id);
 }
 
 Commit get_commit_from_id(char *id) {
@@ -152,7 +178,7 @@ Commit get_commit_from_id(char *id) {
   BYTE commit_hash[hash_size];
 
   vdb_read(refpath, commit_hash, hash_size);
-
+  
   // Get commit from hash
   char hash_str[hash_str_size];
   hash_to_str(commit_hash, hash_str);
@@ -186,8 +212,11 @@ Commit get_commit_from_hash(BYTE *hash) {
 int get_data(char *id, BYTE *buf, size_t size) {
   int hash_size = SHA1_BLOCK_SIZE;
   int hash_str_size = hash_size*2+1;
-  
+
+  int locked = rlock_ref(id);
   Commit commit = get_commit_from_id(id);
+  if(locked) unlock_ref(id);
+
 
   // Get data filepath from commit
   BYTE *data_hash = commit.data;
@@ -201,7 +230,6 @@ int get_data(char *id, BYTE *buf, size_t size) {
   vdb_read(data_path, buf, size);
 
   return 0;
-  
 }
 
 int get_data_at_time(char* id, BYTE *buf, size_t size, u64 timestamp) {
@@ -211,8 +239,10 @@ int get_data_at_time(char* id, BYTE *buf, size_t size, u64 timestamp) {
   
   int hash_size = SHA1_BLOCK_SIZE;
   int hash_str_size = hash_size*2+1;
-  
+
+  int locked = rlock_ref(id);
   Commit commit = get_commit_from_id(id);
+  if(locked) unlock_ref(id);
 
   while(commit.time > timestamp && commit.has_parent) {
     commit = get_commit_from_hash(commit.parent);
@@ -223,7 +253,7 @@ int get_data_at_time(char* id, BYTE *buf, size_t size, u64 timestamp) {
   char hash_str[hash_str_size];
     
   hash_to_str(data_hash, hash_str);
-  char data_path[hash_str_size + 20];
+  char data_path[hash_str_size + 100];
   get_file_path(data_path, hash_str);
 
   // Read data from filepath
@@ -265,7 +295,7 @@ int add_data_to_objects(BYTE *hash, BYTE *data, size_t size) {
 
   return 0;
 }
-  
+
 
 int add_data(char* id, BYTE *data, size_t bytes) {
   SHA1_CTX ctx;
@@ -286,27 +316,42 @@ int add_data(char* id, BYTE *data, size_t bytes) {
   return 0;
 }
 
-#if 0
-int main()
-{
 
-  printf("Testing read and write.\n");
-  
-  char *data = "We made it.";
+int lock_ref(char *id, int lock_type) {
+  int idlen = strlen(id);
+  char refpath[10 + idlen];
+  sprintf(refpath, "db/refs/");
+  strcat(refpath, id);
 
-  /* write("test1", data, 12); */
+  int fd = open(refpath, O_RDONLY);
 
- BYTE buffer[100];
+  if(fd == -1) {
+    printf("Couldn't open file %s for locking.\n", refpath);
+    close(fd);
+    return 0;
+  }
+  else {
+    if(flock(fd, lock_type) < 0) {
+      printf("flock failed on id %s\n", id);
+      close(fd);
+      return 0;
+    }
 
-  /* read("test1", buffer, 100); */
-
-  add_data("conf", (BYTE*)data, strlen(data)+1);
-
-  printf("Wrote: %s\n", data);
-
-  get_data("conf", buffer, 100);
-
-  printf("Read: %s\n", (char*)buffer);
+    close(fd);
+    return 1;
+  }
 
 }
-#endif
+
+int rlock_ref(char* id) {
+  /* printf("RLocking id %s\n", id); */
+  return lock_ref(id, LOCK_SH);
+}
+int wlock_ref(char* id) {
+  /* printf("Locking id %s\n", id); */
+  return lock_ref(id, LOCK_EX);
+}
+int unlock_ref(char* id) {
+  /* printf("Unlocked id %s\n", id); */
+  return lock_ref(id, LOCK_UN);
+}
