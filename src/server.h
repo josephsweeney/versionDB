@@ -10,9 +10,10 @@
 /**************************** DATA TYPES ****************************/
 
 typedef enum {
-  WRITE=0,
-  READ=1,
-  READ_TIME=2
+  WRITE,
+  READ,
+  READ_TIME,
+  EXIT
 } RequestType;
 
 typedef struct {
@@ -25,7 +26,9 @@ typedef struct {
 
 /*********************** FUNCTION DECLARATIONS **********************/
 
-void* accept_loop(void* in);
+void accept_loop(int listen_socket);
+
+void* process_request(void *in);
 
 char *recv_request(int sid);
 

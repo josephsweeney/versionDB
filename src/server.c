@@ -55,19 +55,16 @@ int main(int argc, char *argv[]) {
   error(st, __FILE__, __LINE__);
   global_host = host;
 
-  st = listen(sd, 20);
+  st = listen(sd, 10);
   error(st, __FILE__, __LINE__);
 
-  pthread_t tids[num_threads];
+  /* pthread_t tids[num_threads]; */
   
-  for(int i = 0; i<num_threads; i++) {
-    pthread_create(&tids[i], NULL, accept_loop, (void *)&sd);
-  }
+  /* for(int i = 0; i<num_threads; i++) { */
+  /*   pthread_create(&tids[i], NULL, accept_loop, (void *)&sd); */
+  /* } */
 
-  void *val;
-  for(int i = 0; i<num_threads; i++) {
-    pthread_join(tids[i], &val);
-  }
+  accept_loop(sd);
 
   close(sd);
   unlink(host);
@@ -76,26 +73,41 @@ int main(int argc, char *argv[]) {
 }
 
 
-void *accept_loop(void* in) {
-  int listen_socket = *(int*)in;
-  int sid;
+void accept_loop(int listen_socket) {
+  pthread_t tid;
   struct sockaddr_un client;
   socklen_t client_sz;
   while(1) {
-    printf("Waiting\n");
-    sid = accept(listen_socket, (struct sockaddr*)&client, &client_sz);
-    char *request = recv_request(sid);
+    int *sid = (int*)malloc(sizeof(int));
+    *sid = accept(listen_socket, (struct sockaddr*)&client, &client_sz);
+    printf("\nCreating new thread!!!\n\n");
+    pthread_create(&tid, NULL, process_request, (void *)sid);
+    pthread_detach(tid);
+  }
+}
+
+void* process_request(void *in) {
+  int sid = *(int*)in;
+  char *request;
+  RequestInfo *info;
+  while(1) {
+    request = recv_request(sid);
     if(request == NULL) {
       // Bad Request,
       // TODO: Send back an error
       continue; 
     }
     printf("%s\n", request);
-    RequestInfo *info = request_info_get(request);
+    info = request_info_get(request);
     if(info == NULL) {
       // Bad Request,
       // TODO: Send back an error
       continue; 
+    }
+    if(info->type == EXIT) {
+      free(request);
+      request_info_destroy(info);
+      break;
     }
     switch(info->type) {
       case WRITE:
@@ -118,10 +130,13 @@ void *accept_loop(void* in) {
       default:
 	printf("Unknown type given");
     }
+    free(request);
     request_info_destroy(info);
-    close(sid);
-    printf("Finished request\n");
   }
+  close(sid);
+  free(in);
+  printf("Finished request!!!!\n");
+  pthread_exit(NULL);
 }
 
 
@@ -134,6 +149,7 @@ RequestInfo* request_info_get(char *req) {
 
   if(eat_prefix(&pos, "TYPE:") == -1) {
     printf("prefix wasn't correct\n");
+    printf("%s != TYPE:\n", pos);
     return NULL;
   }
   RequestType type;
@@ -144,11 +160,21 @@ RequestInfo* request_info_get(char *req) {
     type = READ_TIME;
   } else if(strncmp(pos, "READ", 4) == 0) {
     type = READ;
+  } else if(strncmp(pos, "EXIT", sizeof("EXIT")) == 0) {
+    type = EXIT;
   } else {
     // UNSUPPORTED TYPE
     printf("Request had unsupported type.\n%s\n", req);
     return NULL;
   }
+
+  if(type == EXIT) {
+    RequestInfo *info = (RequestInfo*)malloc(sizeof(RequestInfo));
+    info->type = type;
+    info->id = NULL;
+    return info;
+  }
+  
   pos = get_past(pos, delimiter);
   
 
@@ -209,7 +235,8 @@ RequestInfo* request_info_get(char *req) {
 }
 
 void request_info_destroy(RequestInfo *info) {
-  free(info->id);
+  if(info->id != NULL) 
+    free(info->id);
   free(info);
 }
 

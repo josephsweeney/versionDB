@@ -24,6 +24,17 @@ Client
 
 Limit the client server to talking over Unix sockets for now.
 
+
+## Required!!!
+
+* catalog
+* history
+
+detached thread (no join)
+	pthread_detach or attribute
+
+* nice demo (2-3 pages)
+
 ## After the semester
 
 * Write a simple client in Python
