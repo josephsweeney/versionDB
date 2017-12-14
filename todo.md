@@ -2,17 +2,21 @@
 
 ## To finish the semester
 
-* Store hash_str in ref (what does this mean?)
 
 Server:
-* Connect the server to the data management layer
+* Implement 2 new commands
+  * catalog
+  * history
 
 Data storage:
-* Add file locks we actually writing the data
+* Implement 2 new commands
+  * catalog
+  * history
 
 Client
-* Improve the client for testing purposes
-  * have it construct simple requests
+* Improve client
+  * simple repl
+  * send files as data
   * have it retrieve the response from the server
 
 
@@ -24,14 +28,14 @@ Limit the client server to talking over Unix sockets for now.
 * catalog
 * history
 
-
 detached thread (no join)
 	pthread_detach or attribute
-	should be done!
-
+	
 * nice demo (2-3 pages)
 
 ## After the semester
+
+* Store hash_str in ref (what does this mean?)
 
 * Write a simple client in Python
 * Add simple compression to the data files
