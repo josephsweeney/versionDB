@@ -23,6 +23,12 @@
 
 int vdb_size(char *path);  // Returns the size the of a file given file path
 int buf_size(char *id);  // Same, but give the id
+int buf_size_from_hash(char *hash_str);   // Same but give hash_str of object
+
+void output_refs(int fd); // Writes all the refs to a file descriptor
+
+// Writes out the hash_str's of id to an fd (separated by newlines)
+void output_history(int fd, char *id); 
 
 int vdb_write(char *id, BYTE *data, size_t byteCount);
 int vdb_read(char *id, BYTE buffer[], int size);
@@ -31,11 +37,14 @@ void get_file_path(char *dest, char *hashstr);
 
 int get_data(char *id, BYTE *buf, size_t size);
 int get_data_at_time(char* id, BYTE *buf, size_t size, u64 timestamp);
+int get_object_from_hash_str(char *hash_str, BYTE *buf, int sz);
 
 int add_data_to_objects(BYTE *hash, BYTE *data, size_t size);
 int add_data(char* id, BYTE *data, size_t bytes);
 
 Commit get_commit_from_id(char *id);
+Commit get_commit_from_hash(BYTE *hash);
+Commit get_commit_from_hash_str(char *hash_str);
 void make_commit(char* id, BYTE *hash);
 
 int lock_ref(char *id, int lock_type);

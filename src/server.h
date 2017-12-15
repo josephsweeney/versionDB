@@ -13,6 +13,8 @@ typedef enum {
   WRITE,
   READ,
   READ_TIME,
+  LS,
+  HISTORY,
   EXIT
 } RequestType;
 

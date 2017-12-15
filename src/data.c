@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <sys/file.h>
 #include <fcntl.h>
+#include <dirent.h>
 #include "sha1.h"
 #include "data.h"
 #include "commit.h"
@@ -38,6 +39,56 @@ int buf_size(char *id) {
   get_file_path(data_path, hash_str);
 
   return vdb_size(data_path);
+}
+
+int buf_size_from_hash(char *hash_str) {
+  int hash_size = SHA1_BLOCK_SIZE;
+  int hash_str_size = hash_size*2+1;
+
+  char data_path[hash_str_size + 20];
+  get_file_path(data_path, hash_str);
+
+  return vdb_size(data_path);
+}
+
+
+void output_refs(int fd) {
+  DIR *d;
+  struct dirent *dir;
+  d = opendir("db/refs/");
+  if (d) {
+    while ((dir = readdir(d)) != NULL) {
+      int len = dir->d_namlen;
+      int bytes = 0;
+      while(bytes < len) {
+	bytes += write(fd, dir->d_name + bytes, len-bytes);
+      }
+    }
+    closedir(d);
+  }
+
+}
+
+void output_history(int fd, char *id) {
+  int hash_size = SHA1_BLOCK_SIZE;
+  int hash_str_size = hash_size*2+1;
+
+  int locked = rlock_ref(id);
+  Commit commit = get_commit_from_id(id);
+  if(locked) unlock_ref(id);
+
+  BYTE *data_hash;
+  char hash_str[hash_str_size];
+  while(commit.has_parent) {
+    commit = get_commit_from_hash(commit.parent);
+    data_hash = commit.data;
+    hash_to_str(data_hash, hash_str);
+    int bytes = 0;
+    while(bytes < hash_str_size) {
+      bytes += write(fd, hash_str + bytes, hash_str_size-bytes);
+    }
+    write(fd, "\n", 1);
+  }
 }
 
 
@@ -196,7 +247,7 @@ Commit get_commit_from_hash(BYTE *hash) {
   int hash_size = SHA1_BLOCK_SIZE;
   int hash_str_size = hash_size*2+1;
 
-  // Get commit from hash
+  // Get object from hash
   char hash_str[hash_str_size];
   hash_to_str(hash, hash_str);
   char objpath[hash_str_size + 20];
@@ -207,6 +258,33 @@ Commit get_commit_from_hash(BYTE *hash) {
   vdb_read(objpath, (BYTE*)&commit, sizeof(Commit));
 
   return commit;
+}
+
+Commit get_commit_from_hash_str(char *hash_str) {
+  int hash_size = SHA1_BLOCK_SIZE;
+  int hash_str_size = hash_size*2+1;
+
+  // Get object from hash
+  char objpath[hash_str_size + 20];
+  get_file_path(objpath, hash_str);
+
+  Commit commit;
+
+  vdb_read(objpath, (BYTE*)&commit, sizeof(Commit));
+
+  return commit;
+}
+
+
+int get_object_from_hash_str(char *hash_str, BYTE *buf, int sz) {
+  int hash_size = SHA1_BLOCK_SIZE;
+  int hash_str_size = hash_size*2+1;
+
+  // Get object from hash
+  char objpath[hash_str_size + 20];
+  get_file_path(objpath, hash_str);
+
+  return vdb_read(objpath, buf, sz);
 }
 
 int get_data(char *id, BYTE *buf, size_t size) {

@@ -4,20 +4,20 @@
 
 
 Server:
-* Implement 2 new commands
-  * catalog
-  * history
+* Return data to client
 
 Data storage:
-* Implement 2 new commands
-  * catalog
-  * history
+* Test all commands
 
 Client
 * Improve client
-  * simple repl
-  * send files as data
+  * command line args for requests
+  * finish repl interface(won't be very good)
+  * send files as data 
   * have it retrieve the response from the server
+  
+* Create a nice demo of operation of server and client
+  * Probably put this in the readme
 
 
 Limit the client server to talking over Unix sockets for now.

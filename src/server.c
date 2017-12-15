@@ -141,6 +141,15 @@ void* process_request(void *in) {
 	buf = (BYTE*)malloc(sz);
 	get_data_at_time(info->id, buf, sz, info->time);
 	break;
+      case LS:
+	// output all the refs
+	printf("LS\n");
+	output_refs(sid);
+	break;
+      case HISTORY:
+	printf("History\nID: %s\n", info->id);
+	output_history(sid, info->id);
+	break;
       default:
 	printf("Unknown type given");
     }
@@ -176,6 +185,8 @@ RequestInfo* request_info_get(char *req) {
     type = READ;
   } else if(strncmp(pos, "EXIT", sizeof("EXIT")) == 0) {
     type = EXIT;
+  } else if(strncmp(pos, "EXIT", sizeof("EXIT")) == 0) {
+    type = LS;
   } else {
     // UNSUPPORTED TYPE
     printf("Request had unsupported type.\n%s\n", req);
@@ -183,6 +194,13 @@ RequestInfo* request_info_get(char *req) {
   }
 
   if(type == EXIT) {
+    RequestInfo *info = (RequestInfo*)malloc(sizeof(RequestInfo));
+    info->type = type;
+    info->id = NULL;
+    return info;
+  }
+
+  if(type == LS) {
     RequestInfo *info = (RequestInfo*)malloc(sizeof(RequestInfo));
     info->type = type;
     info->id = NULL;
