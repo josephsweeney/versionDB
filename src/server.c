@@ -120,7 +120,8 @@ void* process_request(void *in) {
 	buf = (BYTE*)malloc(info->write_len);
 	retrieve_data(sid, info, buf);
 	add_data(info->id, buf, info->write_len);
-        // Send response back (maybe the hash?)
+        // Send response back (response is hash str of stored data)
+	output_hash_str(sid, info->id);
 	break;
       case READ:
 	//read data
@@ -130,16 +131,18 @@ void* process_request(void *in) {
 	buf = (BYTE*)malloc(sz);
 	get_data(info->id, buf, sz);
 	printf("BUF of sz: %d:\n%s\nDone reading\n", sz,buf);
-	
+	send_bytes(sid, buf, sz);
 	break;
       case READ_TIME:
 	// read data at time
 	printf("Read at time\n");
 	printf("ID: %s\n", info->id);
 	printf("TIME: %llu\n", info->time);
+	// TODO: if old file is larger than current, this breaks
 	sz = buf_size(info->id);
 	buf = (BYTE*)malloc(sz);
 	get_data_at_time(info->id, buf, sz, info->time);
+	send_bytes(sid, buf, sz);
 	break;
       case LS:
 	// output all the refs
@@ -197,6 +200,7 @@ RequestInfo* request_info_get(char *req) {
     RequestInfo *info = (RequestInfo*)malloc(sizeof(RequestInfo));
     info->type = type;
     info->id = NULL;
+    info->hash = NULL;
     return info;
   }
 
@@ -204,6 +208,7 @@ RequestInfo* request_info_get(char *req) {
     RequestInfo *info = (RequestInfo*)malloc(sizeof(RequestInfo));
     info->type = type;
     info->id = NULL;
+    info->hash = NULL;
     return info;
   }
   
@@ -213,15 +218,24 @@ RequestInfo* request_info_get(char *req) {
   /* ID */
 
   if(eat_prefix(&pos, "ID:") == -1) {
-    printf("prefix wasn't correct\n");
-    return NULL;
+    if(eat_prefix(&pos, "HASH:") == 0 && type == READ) {
+      RequestInfo *info = (RequestInfo*)malloc(sizeof(RequestInfo));
+      info->type = type;
+      info->id = NULL;
+      char *hash = copy_to(pos, delimiter, 1);
+      info->hash = hash;
+      return info;
+    }
+    else {
+      printf("prefix wasn't correct\n");
+      return NULL;
+    }
   }
   char *id = copy_to(pos, delimiter, 1);
   if(id == NULL) {
     printf("copy_to didn't work.\n%s\n", req);
     return NULL;
   }
-
   
   /* WRITE_LEN */
   
@@ -260,6 +274,7 @@ RequestInfo* request_info_get(char *req) {
 
   info->type = type;
   info->id = id;
+  info->hash = NULL;
   info->write_len = write_len;
   info->time = time;
 
@@ -269,6 +284,8 @@ RequestInfo* request_info_get(char *req) {
 void request_info_destroy(RequestInfo *info) {
   if(info->id != NULL) 
     free(info->id);
+  if(info->hash != NULL)
+    free(info->hash);
   free(info);
 }
 
@@ -351,4 +368,25 @@ int retrieve_data(int sid, RequestInfo *info, BYTE *buf) {
   }
 
   return 0;
+}
+
+
+void send_bytes(int sid, BYTE *buf, int size) {
+  /* Outputs null terminated string: "SIZE:<size>" then that many bytes */
+  char size_str[64];
+  sprintf(size_str, "SIZE:%d", size);
+
+  int len = strlen(size_str);
+
+  int bytes = 0;
+  while(bytes<(len+1)) {
+    bytes += send(sid, size_str + bytes, len + 1 - bytes, 0);
+  }
+
+  len = size;
+  bytes = 0;
+  while(bytes<(len+1)) {
+    bytes += send(sid, buf + bytes, len - bytes, 0);
+  }
+  
 }

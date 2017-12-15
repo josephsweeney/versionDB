@@ -41,6 +41,26 @@ int buf_size(char *id) {
   return vdb_size(data_path);
 }
 
+void output_hash_str(int fd, char *id) {
+  int hash_size = SHA1_BLOCK_SIZE;
+  int hash_str_size = hash_size*2+1;
+
+  rlock_ref(id);
+  Commit commit = get_commit_from_id(id);
+  unlock_ref(id);
+
+  // Get data filepath from commit
+  BYTE *data_hash = commit.data;
+  char hash_str[hash_str_size];
+    
+  hash_to_str(data_hash, hash_str);
+  int len = hash_str_size;
+  int bytes = 0;
+  while(bytes < len) {
+    bytes += write(fd, hash_str + bytes, len-bytes);
+  }
+}
+
 int buf_size_from_hash(char *hash_str) {
   int hash_size = SHA1_BLOCK_SIZE;
   int hash_str_size = hash_size*2+1;

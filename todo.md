@@ -4,7 +4,7 @@
 
 
 Server:
-* Return data to client
+* fix read data at time
 
 Data storage:
 * Test all commands

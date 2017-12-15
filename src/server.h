@@ -21,6 +21,7 @@ typedef enum {
 typedef struct {
   RequestType type;
   char *id;
+  char *hash;
   u64 write_len;
   u64 time;
 } RequestInfo;
@@ -47,5 +48,9 @@ char* copy_to(char* req, char c, int check_end);
 
 // retrieves 'len' bytes from the socket and stores in buf
 int retrieve_data(int sid, RequestInfo *info, BYTE *buf);
+
+// Send back some bytes with a size
+// Outputs null terminated string: "SIZE:<size>" then that many bytes
+void send_bytes(int sid, BYTE *buf, int size);
 
 #endif

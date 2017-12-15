@@ -28,7 +28,9 @@ int buf_size_from_hash(char *hash_str);   // Same but give hash_str of object
 void output_refs(int fd); // Writes all the refs to a file descriptor
 
 // Writes out the hash_str's of id to an fd (separated by newlines)
-void output_history(int fd, char *id); 
+void output_history(int fd, char *id);
+
+void output_hash_str(int fd, char *id);
 
 int vdb_write(char *id, BYTE *data, size_t byteCount);
 int vdb_read(char *id, BYTE buffer[], int size);
