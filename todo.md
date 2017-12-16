@@ -4,17 +4,10 @@
 
 
 Server:
-* fix read data at time
 
 Data storage:
-* Test all commands
 
 Client
-* Improve client
-  * command line args for requests
-  * finish repl interface(won't be very good)
-  * send files as data 
-  * have it retrieve the response from the server
   
 * Create a nice demo of operation of server and client
   * Probably put this in the readme

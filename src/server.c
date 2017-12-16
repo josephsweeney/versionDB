@@ -37,12 +37,11 @@ void int_handler(int sig) {
 int main(int argc, char *argv[]) {
   int st; // Status for all the calls
   signal(SIGINT, int_handler);
-  if(argc < 3) {
-    printf("Please give number of workers, then name of host");
+  if(argc != 2) {
+    printf("Please give name of host");
     exit(0);
   }
-  int num_threads = atoi(argv[1]);
-  char *host = argv[2];
+  char *host = argv[1];
   int sd = socket(PF_LOCAL, SOCK_STREAM, 0);
   error(sd, __FILE__, __LINE__);
   global_sid = sd;
@@ -109,7 +108,7 @@ void* process_request(void *in) {
       request_info_destroy(info);
       break;
     }
-    BYTE *buf;
+    BYTE *buf = NULL;
     int sz=0;
     switch(info->type) {
       case WRITE:
@@ -127,10 +126,17 @@ void* process_request(void *in) {
 	//read data
 	printf("Read\n");
 	printf("ID: %s\n", info->id);
-	sz = buf_size(info->id);
-	buf = (BYTE*)malloc(sz);
-	get_data(info->id, buf, sz);
-	printf("BUF of sz: %d:\n%s\nDone reading\n", sz,buf);
+	if(info->id != NULL) {
+	  sz = buf_size(info->id);
+	  buf = (BYTE*)malloc(sz);
+	  get_data(info->id, buf, sz);
+	  /* printf("BUF of sz: %d:\n%s\nDone reading\n", sz,buf); */
+	}
+	else {
+	  sz = buf_size_from_hash(info->hash);
+	  buf = (BYTE*)malloc(sz);
+	  get_object_from_hash_str(info->hash, buf, sz);
+	}
 	send_bytes(sid, buf, sz);
 	break;
       case READ_TIME:
@@ -138,10 +144,8 @@ void* process_request(void *in) {
 	printf("Read at time\n");
 	printf("ID: %s\n", info->id);
 	printf("TIME: %llu\n", info->time);
-	// TODO: if old file is larger than current, this breaks
-	sz = buf_size(info->id);
-	buf = (BYTE*)malloc(sz);
-	get_data_at_time(info->id, buf, sz, info->time);
+	get_data_at_time(info->id, &buf, &sz, info->time);
+	printf("buf is:\n%s\n", buf);
 	send_bytes(sid, buf, sz);
 	break;
       case LS:
@@ -158,6 +162,10 @@ void* process_request(void *in) {
     }
     free(request);
     request_info_destroy(info);
+    if(buf != NULL) {
+      free(buf);
+      buf = NULL;
+    }
   }
   close(sid);
   free(in);
@@ -186,10 +194,12 @@ RequestInfo* request_info_get(char *req) {
     type = READ_TIME;
   } else if(strncmp(pos, "READ", 4) == 0) {
     type = READ;
-  } else if(strncmp(pos, "EXIT", sizeof("EXIT")) == 0) {
+  } else if(strncmp(pos, "EXIT", 4) == 0) {
     type = EXIT;
-  } else if(strncmp(pos, "EXIT", sizeof("EXIT")) == 0) {
+  } else if(strncmp(pos, "LS", 2) == 0) {
     type = LS;
+  } else if(strncmp(pos, "HISTORY", 7) == 0) {
+    type = HISTORY;
   } else {
     // UNSUPPORTED TYPE
     printf("Request had unsupported type.\n%s\n", req);
@@ -372,21 +382,20 @@ int retrieve_data(int sid, RequestInfo *info, BYTE *buf) {
 
 
 void send_bytes(int sid, BYTE *buf, int size) {
-  /* Outputs null terminated string: "SIZE:<size>" then that many bytes */
-  char size_str[64];
-  sprintf(size_str, "SIZE:%d", size);
 
-  int len = strlen(size_str);
-
+  int len = size;
   int bytes = 0;
-  while(bytes<(len+1)) {
-    bytes += send(sid, size_str + bytes, len + 1 - bytes, 0);
+  while(bytes<(len)) {
+    int got = send(sid, buf + bytes, len - bytes, 0);
+    if(got < 0) {
+      printf("Send broke\n");
+      break;
+    }
+    bytes += got;
+    printf("sent bytes: %d\n", bytes);
   }
 
-  len = size;
-  bytes = 0;
-  while(bytes<(len+1)) {
-    bytes += send(sid, buf + bytes, len - bytes, 0);
-  }
+  char end = (char)EOF;
+  send(sid, &end, 1, 0);
   
 }

@@ -50,7 +50,7 @@ char* copy_to(char* req, char c, int check_end);
 int retrieve_data(int sid, RequestInfo *info, BYTE *buf);
 
 // Send back some bytes with a size
-// Outputs null terminated string: "SIZE:<size>" then that many bytes
+// Outputs bytes then EOF
 void send_bytes(int sid, BYTE *buf, int size);
 
 #endif

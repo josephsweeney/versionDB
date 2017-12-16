@@ -59,6 +59,8 @@ void output_hash_str(int fd, char *id) {
   while(bytes < len) {
     bytes += write(fd, hash_str + bytes, len-bytes);
   }
+  char end = (char)EOF;
+  write(fd, &end, 1);
 }
 
 int buf_size_from_hash(char *hash_str) {
@@ -78,12 +80,19 @@ void output_refs(int fd) {
   d = opendir("db/refs/");
   if (d) {
     while ((dir = readdir(d)) != NULL) {
-      int len = dir->d_namlen;
-      int bytes = 0;
-      while(bytes < len) {
-	bytes += write(fd, dir->d_name + bytes, len-bytes);
+      if(dir->d_type == DT_REG) {
+	int len = dir->d_namlen;
+	int bytes = 0;
+	char newline = '\n';
+	while(bytes < len) {
+	  printf("dir->d_name = %s\n", dir->d_name);
+	  bytes += write(fd, dir->d_name + bytes, len-bytes);
+	}
+	write(fd, &newline, 1);
       }
     }
+    char end = (char)EOF;
+    write(fd, &end, 1);
     closedir(d);
   }
 
@@ -99,16 +108,39 @@ void output_history(int fd, char *id) {
 
   BYTE *data_hash;
   char hash_str[hash_str_size];
+  char time_str[64];
+  data_hash = commit.data;
+  hash_to_str(data_hash, hash_str);
+  sprintf(time_str, " ~ TIME:%llu", commit.time);
+  int time_len = strlen(time_str);
+  int bytes = 0;
+  while(bytes < hash_str_size) {
+    bytes += write(fd, hash_str + bytes, hash_str_size-bytes);
+  }
+  bytes = 0;
+  while(bytes < time_len) {
+    bytes += write(fd, time_str + bytes, time_len-bytes);
+  }
+  write(fd, "\n", 1);
   while(commit.has_parent) {
     commit = get_commit_from_hash(commit.parent);
     data_hash = commit.data;
     hash_to_str(data_hash, hash_str);
-    int bytes = 0;
+    sprintf(time_str, " ~ TIME:%llu", commit.time);
+    time_len = strlen(time_str);
+    bytes = 0;
     while(bytes < hash_str_size) {
       bytes += write(fd, hash_str + bytes, hash_str_size-bytes);
     }
+    bytes = 0;
+    while(bytes < time_len) {
+      bytes += write(fd, time_str + bytes, time_len-bytes);
+    }
     write(fd, "\n", 1);
   }
+  char end = (char)EOF;
+  write(fd, &end, 1);
+  
 }
 
 
@@ -192,10 +224,8 @@ int get_current_commit(char *id, BYTE *hash) {
   sprintf(refpath, "db/refs/");
   strcat(refpath, id);
 
-  if(!vdb_read(refpath, hash, SHA1_BLOCK_SIZE)) {
-    hash = NULL;
+  if(vdb_read(refpath, hash, SHA1_BLOCK_SIZE) == 0) {
     return 0;
-
   }
 
   return 1;
@@ -205,13 +235,17 @@ void make_commit(char *id, BYTE *hash) {
   Commit commit;
   int hash_size = SHA1_BLOCK_SIZE;
 
-  BYTE parent[hash_size];
+  BYTE *parent = (BYTE*)malloc(hash_size);
 
   int locked = wlock_ref(id);
 
-  get_current_commit(id, parent);
-
-  commit_init(&commit, hash, parent);
+  if(get_current_commit(id, parent) == 0) {
+    commit_init(&commit, hash, NULL);
+  }
+  else {
+    commit_init(&commit, hash, parent);
+  }
+  free(parent);
 
   SHA1_CTX ctx;
   BYTE commit_hash[hash_size];
@@ -330,7 +364,7 @@ int get_data(char *id, BYTE *buf, size_t size) {
   return 0;
 }
 
-int get_data_at_time(char* id, BYTE *buf, size_t size, u64 timestamp) {
+int get_data_at_time(char* id, BYTE **buf, int *size, u64 timestamp) {
   /* !!!!!!!!!!!!!!!!!!!!!!!! 
           NEEDS TESTING 
      !!!!!!!!!!!!!!!!!!!!!!!! */
@@ -351,13 +385,16 @@ int get_data_at_time(char* id, BYTE *buf, size_t size, u64 timestamp) {
   char hash_str[hash_str_size];
     
   hash_to_str(data_hash, hash_str);
+  
+  int sz = buf_size_from_hash(hash_str);
+  *size = sz;
+  *buf = (BYTE*)malloc(sz);
+  
   char data_path[hash_str_size + 100];
   get_file_path(data_path, hash_str);
 
   // Read data from filepath
-  vdb_read(data_path, buf, size);
-
-  return 0;
+  return vdb_read(data_path, *buf, sz);
 }
 
 int add_data_to_objects(BYTE *hash, BYTE *data, size_t size) {

@@ -38,7 +38,9 @@ void hash_to_str(BYTE *hash, char *dst);
 void get_file_path(char *dest, char *hashstr);
 
 int get_data(char *id, BYTE *buf, size_t size);
-int get_data_at_time(char* id, BYTE *buf, size_t size, u64 timestamp);
+
+// mallocs buf, and sets size
+int get_data_at_time(char* id, BYTE **buf, int *size, u64 timestamp);
 int get_object_from_hash_str(char *hash_str, BYTE *buf, int sz);
 
 int add_data_to_objects(BYTE *hash, BYTE *data, size_t size);
