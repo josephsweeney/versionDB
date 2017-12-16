@@ -6,6 +6,8 @@ VersionDB is essentially a versioned data storage solution inspired by Git. Imag
 
 With VersionDB you can store any data, and as you overwrite it, we keep track of each version of the data. If something goes wrong, all you have to do is ask for your data with some time in the past, we will return what the data was at that point in time.
 
+For more information about the protocol that versionDB speaks, read the information in  [`server_architecture.md`](server_architecture.md).
+
 
 ## Building
 
@@ -16,7 +18,7 @@ The build has not been tested on anything except macOS version 10.13.2.
 If there are any problems, please open an issue.
 
 
-## Demo
+## Example Usage
 
 Move into the `versiondb` directory and run the following commands:
 
