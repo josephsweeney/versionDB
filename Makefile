@@ -33,6 +33,10 @@ bin/client.o: src/client.h src/client.c
 	$(CC) $(CFLAGS) -c src/client.c -o $@
 
 
+db:
+	mkdir -p db/objects db/refs
+
+
 
 clean:
 	rm bin/*
